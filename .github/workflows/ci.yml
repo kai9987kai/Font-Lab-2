@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the suite
+        working-directory: tests
+        run: npx playwright test
+
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/playwright-report/
+          retention-days: 7
+
+  lint:
+    name: Static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The app is one file with an inline script, so the syntax check pulls
+      # that script out and hands it to Node rather than running a bundler.
+      - name: Check the inline script parses
+        run: |
+          node -e "
+            const fs = require('fs');
+            const html = fs.readFileSync('index.html', 'utf8');
+            const start = html.lastIndexOf('<script>');
+            const end = html.lastIndexOf('</'+'script>');
+            if (start < 0 || end < start) throw new Error('could not find the app script');
+            fs.writeFileSync('/tmp/app.js', html.slice(start + 8, end));
+            console.log('extracted', html.slice(start + 8, end).length, 'bytes');
+          "
+          node --check /tmp/app.js
+
+      - name: Check there are no stray build artefacts
+        run: |
+          test ! -d node_modules || (echo 'node_modules must not be committed' && exit 1)
+          test -f index.html
+          test -f main.html

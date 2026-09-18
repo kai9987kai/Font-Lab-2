@@ -1,0 +1,18 @@
+{
+  "name": "font-lab-tests",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Browser test suite for Font Lab. The app itself has no dependencies; these are only needed to run the tests.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "serve": "node server.mjs",
+    "setup": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
