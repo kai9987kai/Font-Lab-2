@@ -1,0 +1,7 @@
+# Test tooling only - the app itself has no dependencies and no build step.
+node_modules/
+tests/test-results/
+tests/playwright-report/
+tests/blob-report/
+tests/.playwright/
+.DS_Store
