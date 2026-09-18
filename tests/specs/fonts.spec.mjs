@@ -1,4 +1,4 @@
-import { test, expect } from './helpers.mjs';
+import { test, expect, settle } from './helpers.mjs';
 import { makeTTF, makeWOFF, woffHasCompressedTable, EXPECTED } from '../fixtures/make-font.mjs';
 import { existsSync } from 'node:fs';
 
@@ -77,7 +77,7 @@ test.describe('font catalogue', () => {
     await page.fill('#fontSearch', 'fraun');
     await expect(page.locator('#fontResults [role="option"]')).toHaveCount(1);
     await page.locator('#fontResults [role="option"]').first().click();
-    await page.waitForTimeout(150);
+    await settle(page);
     expect(await page.evaluate(() => window.fontLab.state.fontId)).toBe('gf:Fraunces');
     // Fraunces exposes four axes, each with its own slider.
     await expect(page.locator('#axesContainer .axisRow')).toHaveCount(4);
@@ -185,7 +185,11 @@ test.describe('loading a font from disk', () => {
     const { page } = lab;
 
     await page.setInputFiles('#fontFileInput', DEJAVU);
-    await page.waitForFunction(() => window.fontLab.state.fontId.startsWith('user:'));
+    // Wait for the family to be on screen, not merely for the state to flip:
+    // the preview is painted a frame later.
+    await page.waitForFunction(() =>
+      window.fontLab.state.fontId.startsWith('user:')
+      && getComputedStyle(document.getElementById('previewText')).fontFamily.includes('FontLab'));
 
     const loaded = await page.evaluate(() => {
       const fl = window.fontLab;
@@ -216,7 +220,7 @@ test.describe('loading a font from disk', () => {
     const chips = page.locator('#featureChips .chip');
     await expect(chips).not.toHaveCount(0);
     await chips.first().click();
-    await page.waitForTimeout(120);
+    await settle(page);
     expect(await page.evaluate(() => window.fontLab.code.css())).toContain('font-feature-settings');
   });
 });

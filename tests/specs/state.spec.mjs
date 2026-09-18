@@ -1,4 +1,4 @@
-import { test, expect } from './helpers.mjs';
+import { test, expect, settle } from './helpers.mjs';
 
 test.describe('state schema', () => {
   test('hostile and malformed input is coerced, never trusted', async ({ lab }) => {
@@ -111,7 +111,7 @@ test.describe('state schema', () => {
 
     // The UI path swallows the error and leaves the lab usable.
     await lab.page.evaluate(() => { location.hash = '#type=%%%broken%%%'; });
-    await lab.page.waitForTimeout(150);
+    await settle(lab.page);
     await expect(lab.page.locator('#previewText')).toBeVisible();
   });
 
@@ -126,7 +126,7 @@ test.describe('state schema', () => {
         node.dispatchEvent(new Event('input', { bubbles: true }));
       });
     });
-    await page.waitForTimeout(60);
+    await settle(page);
     expect(await page.evaluate(() => window.fontLab.state.size)).toBe(84);
 
     await page.evaluate(() => window.fontLab.undo());
@@ -139,7 +139,12 @@ test.describe('state schema', () => {
   test('state survives a reload through localStorage', async ({ lab }) => {
     const { page } = lab;
     await page.evaluate(() => window.fontLab.apply({ size: 37, fontId: 'gf:Fraunces', text: 'Persisted' }));
-    await page.waitForTimeout(600);
+    // The write to localStorage is debounced, so wait for the value to land
+    // rather than for a stopwatch.
+    await page.waitForFunction(() => {
+      try { return (localStorage.getItem('font-lab-last-v2') || '').includes('"size":37'); }
+      catch { return false; }
+    });
     await page.reload();
     await page.waitForFunction(() => !!window.fontLab);
     const restored = await page.evaluate(() => ({

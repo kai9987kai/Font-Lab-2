@@ -1,4 +1,4 @@
-import { test, expect } from './helpers.mjs';
+import { test, expect, settle } from './helpers.mjs';
 
 test.describe('the lab end to end', () => {
   test('loads, renders and exposes live metrics', async ({ lab }) => {
@@ -105,7 +105,7 @@ test.describe('the lab end to end', () => {
       fl.set('zoomLevel', 200);
       fl.set('reflowWidth', 320);
     });
-    await page.waitForTimeout(150);
+    await settle(page);
     const stage = await page.evaluate(() => ({
       filter: getComputedStyle(document.getElementById('canvas')).filter,
       width: document.getElementById('stageWrap').style.width,
@@ -123,7 +123,7 @@ test.describe('the lab end to end', () => {
       window.fontLab.set('zoomLevel', 100);
       window.fontLab.set('reflowWidth', 0);
     });
-    await page.waitForTimeout(150);
+    await settle(page);
     expect(await page.evaluate(() => document.getElementById('stageWrap').style.transform)).toBe('');
   });
 
@@ -160,6 +160,9 @@ test.describe('the lab end to end', () => {
       fontId: 'gf:Fraunces', size: 42, weight: 600, scaleMode: 'fluid', showScale: 'on',
       pairMode: 'on', pairFontId: 'gf:Inter', textBoxTrim: 'cap alphabetic'
     }));
+    // The pair size is derived from the rendered display size, so the CSS is
+    // only stable once the frame has painted.
+    await settle(page);
 
     const output = await page.evaluate(() => {
       const fl = window.fontLab;
@@ -242,8 +245,7 @@ test.describe('the lab end to end', () => {
       return window.fontLab.share.url();
     });
     await page.goto(url);
-    await page.waitForFunction(() => !!window.fontLab);
-    await page.waitForTimeout(200);
+    await page.waitForFunction(() => !!window.fontLab && window.fontLab.state.size === 61);
     const restored = await page.evaluate(() => ({
       size: window.fontLab.state.size,
       fontId: window.fontLab.state.fontId,
@@ -257,7 +259,7 @@ test.describe('the lab end to end', () => {
     const { page } = lab;
     await page.fill('#shadowCSS', '0 0 4px red; } #previewText { display: none } .x {');
     await page.fill('#filterCSS', 'url(http://example.test/x.svg#evil)');
-    await page.waitForTimeout(120);
+    await settle(page);
     await expect(page.locator('#previewText')).toBeVisible();
     const applied = await page.evaluate(() => ({
       shadow: window.fontLab.state.shadow,
@@ -273,7 +275,7 @@ test.describe('the lab end to end', () => {
 
     // A legitimate value still goes through untouched.
     await page.fill('#shadowCSS', '0 2px 8px rgba(0, 0, 0, .35)');
-    await page.waitForTimeout(120);
+    await settle(page);
     expect(await page.evaluate(() => window.fontLab.state.shadow)).toBe('0 2px 8px rgba(0, 0, 0, .35)');
     expect(await page.evaluate(() => window.fontLab.code.css())).toContain('text-shadow: 0 2px 8px rgba(0, 0, 0, .35)');
   });
@@ -310,7 +312,7 @@ test.describe('the lab end to end', () => {
   test('the layout holds together on a phone-sized viewport', async ({ lab }) => {
     const { page } = lab;
     await page.setViewportSize({ width: 390, height: 780 });
-    await page.waitForTimeout(250);
+    await settle(page);
     const overflow = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
